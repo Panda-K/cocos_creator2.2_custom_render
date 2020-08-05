@@ -1,0 +1,115 @@
+// Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.  
+
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        texture: { value: white }
+        alphaThreshold: { value: 0.5 }
+        speedX: { value: 0.1 }
+        speedY: { value: 0.0 }
+}%
+
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+  in vec4 a_color;
+  out vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 a_uv0;
+  out vec2 v_uv0;
+  #endif
+
+  void main () {
+    vec4 pos = vec4(a_position, 1);
+
+    #if CC_USE_MODEL
+    pos = cc_matViewProj * cc_matWorld * pos;
+    #else
+    pos = cc_matViewProj * pos;
+    #endif
+
+    #if USE_TEXTURE
+    v_uv0 = a_uv0;
+    #endif
+
+    v_color = a_color;
+
+    gl_Position = pos;
+  }
+}%
+
+
+CCProgram fs %{
+  precision highp float;
+  
+  #include <alpha-test>
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 v_uv0;
+  uniform sampler2D texture;
+  uniform MoveAttrb {
+    float speedX;
+    float speedY;
+  }
+   
+  #endif
+
+  void main () {
+    vec4 o = vec4(1, 1, 1, 1);
+
+    vec2 uv = v_uv0.xy;
+    float tx = cc_time.x * speedX;
+    float ty = cc_time.x * speedY;
+
+    uv.x = fract(uv.x - tx);
+    uv.y = fract(uv.y - ty);
+
+    #if USE_TEXTURE
+    o *= texture(texture, uv);
+      #if CC_USE_ALPHA_ATLAS_TEXTURE
+      o.a *= texture2D(texture, uv + vec2(0, 0.5)).r;
+      #endif
+    #endif
+
+    o *= v_color;
+
+    ALPHA_TEST(o);
+
+    vec4 beginColor = vec4(0, 0, 1, 0.5);
+    vec4 endColor = vec4(0.5, 0, 0, 0.5);
+    
+    vec4 color = o;
+  	// float angleInRadians = radians(angle); 
+  	// float ratio = clamp((v_uv0.y * cos(angleInRadians) + v_uv0.x * sin(angleInRadians) + offset) * uvRatio, 0.0, 1.0);
+    float ratio = clamp((v_uv0.y * cos(0.5) + v_uv0.x * sin(0.5) + 0.0) * 1.0, 0.0, 1.0);
+	  float beginRatio = 1.0 - ratio;
+  	float endRatio = ratio;
+  
+  	gl_FragColor = vec4(
+  		color.r * (beginColor.r * beginRatio + endColor.r * endRatio),
+  		color.g * (beginColor.g * beginRatio + endColor.g * endRatio),
+  		color.b * (beginColor.b * beginRatio + endColor.b * endRatio),
+  		color.a * (beginColor.a * beginRatio + endColor.a * endRatio)
+  	);
+
+    // gl_FragColor = o;
+  }
+}%
