@@ -16,14 +16,14 @@ export default class WJAssembler2D extends cc.Assembler {
         this._renderData.init(this);
 
         this.initLocal();
-        this.initData();
+        this.initData(comp);
     }
 
     get verticesFloats() {
         return this.verticesCount * this.floatsPerVert;
     }
 
-    initData() {
+    initData(comp) {
         let data = this._renderData;
         data.createQuadData(0, this.verticesFloats, this.indicesCount);
     }

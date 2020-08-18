@@ -1,4 +1,4 @@
-import WJAssembler2D from "./WJAssembler2D";
+import WJAssembler2D from "../WJAssembler2D";
 
 export default class WJMultiAssembler extends WJAssembler2D {
     segCount = 1;       //切分次数
