@@ -1,0 +1,117 @@
+// Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.  
+
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        texture: { value: white }
+        hightlightColor: { value: [1,1,1,1], editor: { type: color} }
+        textureSize: { value: [128,128] }
+        radius: { value: 0.0 }
+}%
+
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+  in vec4 a_color;
+  out vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 a_uv0;
+  out vec2 v_uv0;
+  #endif
+
+  void main () {
+    vec4 pos = vec4(a_position, 1);
+    #if CC_USE_MODEL
+    pos = cc_matViewProj * cc_matWorld * pos;
+    #else
+    pos = cc_matViewProj * pos;
+    #endif
+    v_uv0 = a_uv0;
+    v_color = a_color;
+    gl_Position = pos;
+  }
+}%
+
+CCProgram fs %{
+  precision lowp float;
+  // #include <texture>
+  #define SAMPLE 180
+  #define PI 3.14159265359
+
+  in vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 v_uv0;
+  uniform sampler2D texture;
+  uniform myUniform{
+    vec4 hightlightColor;
+    vec2 textureSize;
+    float radius;
+  };
+  #endif
+  
+  vec4 getColorFromTexture(sampler2D texture,vec2 uv){
+      vec4 color=vec4(0,1,0,1);
+      // CCTexture(texture,uv,color);
+      color = texture(texture, uv);
+      return color;
+  }
+
+  void main () {
+    vec4 o = vec4(1, 1, 1, 1);
+
+    float unitWidth=1.0/textureSize.x;  //单个像素的宽占uv.x的百分比
+    float unitHeight=1.0/textureSize.y; //单个像素的高占uv.y的百分比
+    float width=radius*unitWidth;   //radius为边缘高光的半径
+    float height=radius*unitHeight;
+
+    float perCol = 0.0;
+    bool haveFish = false;
+    bool haveBig = false;
+    bool haveSmall = false;
+    float angle=0.0;  //角度
+    float maxAlpha=0.0; //透明度，经过下面的循环后，如果透明度为0则说明该像素周围没有颜色，即它不是图像的边缘；反之则是图像的边缘
+    for(int i=0;i<SAMPLE;i++){
+        angle+=1.0/float(SAMPLE)*2.0*PI;  //角度每个循环增加一次，循环结束时角度为2PI，整好一个圆的角度，圆的精度由SAMPLE决定，SAMPLE越高圆越精细，但运算量也会增加
+        vec2 testPoint_uv=vec2(width*cos(angle),height*sin(angle));//该点的圆上该角度的相对UV坐标
+        testPoint_uv=clamp(v_uv0+testPoint_uv,vec2(0,0),vec2(1,1));//加上该点的UV坐标变为绝对UV坐标
+        float tempAlpha=getColorFromTexture(texture,testPoint_uv).a;//用绝对UV坐标从texture读取颜色，看它的透明度
+        maxAlpha=max(maxAlpha,tempAlpha);//把透明度结果保存起来
+        if(!haveFish && maxAlpha > 0.99){
+          haveFish = true;
+          perCol = sin(angle);
+        }
+        if(maxAlpha == 1.0){
+          haveBig = true;
+        }
+        if(maxAlpha == 0.0){
+          haveSmall = true;
+        }
+    }
+    if(!(haveBig && haveSmall)){
+      perCol = 1.0;
+    }
+
+    vec4 finalColor=mix(vec4(0.0),hightlightColor,maxAlpha);//根据检测后的透明度决定该点最终的颜色
+    o=getColorFromTexture(texture,v_uv0);//读取该点本来的颜色
+    o*=v_color;//乘上顶点颜色，如果想要边缘高光也受node.color的影响，那么也要finalColor*=v_color;
+    vec4 tmpCol = mix(finalColor,o,o.a);
+    vec4 resCol = vec4(tmpCol.r, tmpCol.g, tmpCol.b, tmpCol.a*perCol);
+
+    gl_FragColor = resCol;//最后按透明度的占比给这俩颜色混合起来
+  }
+}%

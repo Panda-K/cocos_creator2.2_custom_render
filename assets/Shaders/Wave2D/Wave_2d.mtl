@@ -1,0 +1,14 @@
+{
+  "__type__": "cc.Material",
+  "_name": "",
+  "_objFlags": 0,
+  "_native": "",
+  "_effectAsset": {
+    "__uuid__": "07aeaadd-7b33-4599-998f-5dcf0f36ea19"
+  },
+  "_defines": {},
+  "_props": {
+    "angularVelocity": 6,
+    "frequency": 5
+  }
+}

@@ -26,6 +26,7 @@ export default class MassSpringSprite extends cc.Sprite {
     @property({displayName:"外力"})
     public outForce:number = 200           //外力
 
+    private isMove = false                  //是否振动
     private _pointList = []
 
     onEnable () {
@@ -36,7 +37,7 @@ export default class MassSpringSprite extends cc.Sprite {
     }
 
     public update(dt) {
-        if (!CC_EDITOR) {
+        if (!CC_EDITOR && this.isMove) {
             this.calcAllForce(dt)
             this.calcNewPos(dt)
             this.draw()
@@ -165,6 +166,7 @@ export default class MassSpringSprite extends cc.Sprite {
 
     //verlet计算所有点的新位置
     public calcNewPos(dt) {
+        let isFinish = true
         for (let i = 0; i < this.pointsCount; i++) {
             for (let j = 0; j < this.pointsCount; j++) {
                 let tmpPoint = this._pointList[i][j]
@@ -178,8 +180,16 @@ export default class MassSpringSprite extends cc.Sprite {
                     let tmpNewPos = tmpPoint.newPos.sub(tmpPoint.oldPos).mul(this.dampK).add(tmpPoint.newPos).add(acc.mul(dt*dt))
                     tmpPoint.oldPos = tmpPoint.newPos
                     tmpPoint.newPos = tmpNewPos
+
+                    if (tmpPoint.force.x > 0.001 || tmpPoint.force.y > 0.001) {
+                        isFinish = false
+                    }
                 }
             }
+        }
+
+        if (isFinish) {
+            this.isMove = false
         }
     }
 
@@ -190,6 +200,7 @@ export default class MassSpringSprite extends cc.Sprite {
     
     //施加外力
     public applyOtherForce (__pos, __force) {
+        this.isMove = true
         let tmpForce = cc.v2(0, -this.outForce)
         tmpForce = __force || tmpForce
         let tmpPoint = this._pointList[__pos[0]][__pos[1]]

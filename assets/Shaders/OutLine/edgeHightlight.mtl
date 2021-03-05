@@ -1,0 +1,18 @@
+{
+  "__type__": "cc.Material",
+  "_name": "",
+  "_objFlags": 0,
+  "_native": "",
+  "_effectAsset": {
+    "__uuid__": "a271ef65-b74d-4095-a9fd-f94ef6579bc4"
+  },
+  "_defines": {
+    "USE_TEXTURE": true
+  },
+  "_props": {
+    "texture": {
+      "__uuid__": "bb2dce40-c58f-4c18-b655-c2797414551e"
+    },
+    "radius": 10
+  }
+}

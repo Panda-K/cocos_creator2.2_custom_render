@@ -8,7 +8,7 @@ cc.Class({
         },
 
         imgMass: {
-            default: null,
+            default: [],
             type: cc.Node
         },
         
@@ -18,8 +18,12 @@ cc.Class({
 
     // use this for initialization
     onLoad: function () {
-        this.m_massObj = this.imgMass.getComponent("MassSpringSprite")
-        this.imgMass.on(cc.Node.EventType.TOUCH_END, this.onBtnClick, this)
+        // this.m_massObj = this.imgMass.getComponent("MassSpringSprite")
+        for (let i = 0; i < this.imgMass.length; i++) {
+            let imgNode = this.imgMass[i];
+            imgNode.on(cc.Node.EventType.TOUCH_END, this.onBtnClick, this)
+        }
+        
     },
 
     // called every frame
@@ -27,11 +31,13 @@ cc.Class({
 
     },
 
-    onBtnClick : function () {
-        let MaxI = this.m_massObj.pointsCount-1
-        let index = Math.floor(this.m_massObj.pointsCount/2)
+    onBtnClick : function (__event) {
+        let massObj = __event.target.getComponent("MassSpringSprite")
+        
+        let MaxI = massObj.pointsCount-1
+        let index = Math.floor(massObj.pointsCount/2)
 
-        let forceNum = this.m_massObj.outForce
+        let forceNum = massObj.outForce
         let offSetIndex = 1
         let points = [[0, index], [index, 0], [MaxI, index], [index, MaxI]]
         let points1 = [[index-offSetIndex, index], 
@@ -51,7 +57,7 @@ cc.Class({
         for (let i = 0; i < 8; i++) {
             let element = points1[i];
             let force = forces[i].neg()
-            this.m_massObj.applyOtherForce(element, force)
+            massObj.applyOtherForce(element, force)
         }
     },
 });

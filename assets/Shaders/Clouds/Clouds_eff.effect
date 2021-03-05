@@ -1,0 +1,106 @@
+// Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.  
+
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        texture: { value: white }
+        texture1: { value: white }
+        texture2: { value: white }
+        alphaThreshold: { value: 0.5 }
+}%
+
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+  in vec4 a_color;
+  out vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 a_uv0;
+  out vec2 v_uv0;
+  out vec2 v_uv1;
+  out vec2 v_uv2;
+  #endif
+
+  void main () {
+    vec4 pos = vec4(a_position, 1);
+
+    #if CC_USE_MODEL
+    pos = cc_matViewProj * cc_matWorld * pos;
+    #else
+    pos = cc_matViewProj * pos;
+    #endif
+
+    #if USE_TEXTURE
+    v_uv0 = a_uv0;
+
+    float time1 = mod(cc_time.x * 0.02, 1.0);
+    float time2 = mod(cc_time.x * 0.05, 1.0);
+    v_uv1 = a_uv0;
+    v_uv1.x += time1;
+
+    v_uv2 = a_uv0;
+    v_uv2.xy += time2;
+    #endif
+
+    v_color = a_color;
+
+    gl_Position = pos;
+  }
+}%
+
+
+CCProgram fs %{
+  precision mediump float;
+  
+  #include <alpha-test>
+
+  in vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 v_uv0;
+  in vec2 v_uv1;
+  in vec2 v_uv2;
+  uniform sampler2D texture;
+  uniform sampler2D texture1;
+  uniform sampler2D texture2;
+  #endif
+
+  void main () {
+    vec4 o = vec4(1, 1, 1, 1);
+
+    #if USE_TEXTURE
+    // o *= texture(texture, v_uv0);
+    // o = texture(texture, v_uv0) + texture(texture1, v_uv1);
+    o *= texture(texture1, v_uv1) * texture(texture2, v_uv2);
+    o.a = (o.r + o.g + o.b) * 0.33;
+
+    o -= 1.0 - 2.0;
+    o = max(o, 0.0);
+    o *= (1.0 / 2.0);
+    // 我们差不多就要完工了，这里只有一个问题了：当他们变厚的时候云层应该颜色加深。现在则是相反。我们通过反转颜色解决这个问题。
+    o.r = 1.0 - o.r;
+    o.g = 1.0 - o.g;
+    o.b = 1.0 - o.b;
+    #endif
+
+    o *= v_color;
+
+    ALPHA_TEST(o);
+
+    gl_FragColor = o;
+  }
+}%

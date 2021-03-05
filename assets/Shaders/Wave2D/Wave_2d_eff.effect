@@ -1,0 +1,73 @@
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        amplitude: { value: 0.05, range: [0.0, 0.5], editor: { tooltip: '振幅' } }
+        angularVelocity: { value: 10.0, editor: { tooltip: '角速度' } }
+        frequency: { value: 10.0, editor: { tooltip: '频率' } }
+        offset: { value: 0.5, range: [0.0, 1.0], editor: { tooltip: '偏距' } }
+        toLeft: { value: true, editor: { type: boolean, tooltip: '波浪方向' } }
+}%
+
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+
+  in vec3 a_position;
+  in vec4 a_color;
+  in vec2 a_uv0;
+
+  out vec4 v_color;
+  out vec2 v_uv0;
+
+  void main () {
+    gl_Position = cc_matViewProj * vec4(a_position, 1);
+    v_color = a_color;
+    v_uv0 = a_uv0;
+  }
+}%
+
+
+CCProgram fs %{
+  precision highp float;
+  #include <cc-global>
+
+  in vec4 v_color;
+  in vec2 v_uv0;
+
+  uniform sampler2D texture;
+
+  // 自定义属性
+  uniform Properties {
+    float amplitude;        // 振幅
+    float angularVelocity;  // 角速度
+    float frequency;        // 频率
+    float offset;           // 偏距
+    bool toLeft;            // 是否向左
+  };
+
+  void main () {
+    vec4 color = v_color;
+    color *= texture(texture, v_uv0);
+    if(color.a == 0.0) discard;
+    float y = amplitude * sin((angularVelocity * v_uv0.x) + ((frequency * cc_time.x) * (toLeft ? 1. : -1.))) + offset;
+    float y1 = amplitude * sin((angularVelocity * v_uv0.x) + ((frequency * cc_time.x-0.5) * (toLeft ? 1. : -1.))) + offset;
+    // if(v_uv0.y < y && (1.0-v_uv0.y) < (offset-0.01) && (1.0-v_uv0.y) > (offset - amplitude)) {
+    //   color = vec4(1, 0.745, 0.275, 1);
+    // }
+    if(v_uv0.y < y && v_uv0.y > y1) {
+      color = vec4(0.95, 0.745, 0.275, color.a);
+    }
+    else if(v_uv0.y < y) discard;
+    gl_FragColor = color;
+  }
+}%

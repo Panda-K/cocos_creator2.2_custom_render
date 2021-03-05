@@ -1,0 +1,98 @@
+// Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.  
+
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs
+      frag: fs
+      blendState:
+        targets:
+        - blend: true
+      rasterizerState:
+        cullMode: none
+      properties:
+        texture: { value: white }
+        alphaThreshold: { value: 0.5 }
+        p_pos : {value : [0.0, 0.0]}    //笔刷位置
+        p_rad : {value : 0.1}           //笔刷粗细
+        p_col : {value : [1.0, 1.0, 1.0, 1.0], editor: { type: color}}           //笔刷颜色
+        p_hard : {value : 0.1}           //笔刷硬度
+}%
+
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+  in vec4 a_color;
+  out vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 a_uv0;
+  out vec2 v_uv0;
+  #endif
+
+  void main () {
+    vec4 pos = vec4(a_position, 1);
+
+    #if CC_USE_MODEL
+    pos = cc_matViewProj * cc_matWorld * pos;
+    #else
+    pos = cc_matViewProj * pos;
+    #endif
+
+    #if USE_TEXTURE
+    v_uv0 = a_uv0;
+    #endif
+
+    v_color = a_color;
+
+    gl_Position = pos;
+  }
+}%
+
+
+CCProgram fs %{
+  precision highp float;
+  
+  #include <alpha-test>
+
+  in vec4 v_color;
+
+  #if USE_TEXTURE
+  in vec2 v_uv0;
+  uniform sampler2D texture;
+  #endif
+
+  uniform myPaint{
+    vec4 p_col;    //笔刷颜色
+    vec2 p_pos;    //笔刷位置
+    float p_rad;   //笔刷粗细
+    float p_hard;  //笔刷硬度
+  };
+
+  void main () {
+    vec4 o = vec4(1, 1, 1, 1);
+
+    #if USE_TEXTURE
+    o *= texture(texture, v_uv0);
+    #endif
+
+    o *= v_color;
+    vec4 final_col = o;
+
+    vec4 col_src = p_col;
+    float dis = distance(v_uv0, p_pos);
+    if(dis < p_rad){
+      if(dis > p_rad*p_hard){
+        col_src.a *= 1.0 - smoothstep(p_rad*p_hard, p_rad, dis);
+      }
+      final_col = col_src*col_src.a + o * (1.0 - col_src.a);//vec4(1, 1, 1, 1);
+    }
+    
+    gl_FragColor = final_col;
+  }
+}%
