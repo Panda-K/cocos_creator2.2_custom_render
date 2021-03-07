@@ -1,13 +1,5 @@
-// Learn cc.Class:
-//  - [Chinese] https://docs.cocos.com/creator/manual/zh/scripting/class.html
-//  - [English] http://docs.cocos2d-x.org/creator/manual/en/scripting/class.html
-// Learn Attribute:
-//  - [Chinese] https://docs.cocos.com/creator/manual/zh/scripting/reference/attributes.html
-//  - [English] http://docs.cocos2d-x.org/creator/manual/en/scripting/reference/attributes.html
-// Learn life-cycle callbacks:
-//  - [Chinese] https://docs.cocos.com/creator/manual/zh/scripting/life-cycle-callbacks.html
-//  - [English] https://www.cocos2d-x.org/docs/creator/manual/en/scripting/life-cycle-callbacks.html
-
+let DEFAULT_W = 512
+let HASH_LEN = 512
 cc.Class({
     extends: cc.Component,
 
@@ -18,12 +10,16 @@ cc.Class({
             type: cc.Sprite, 
         },
 
-        btnSave : {default : null, type : cc.Node},
+        btnSave     : {default : null, type : cc.Node},
+        btnUpdate   : {default : null, type : cc.Node},     //刷新
+        m_freq : 1/32,  //周期
+        m_octs : 3,     //倍频
     },
 
     // LIFE-CYCLE CALLBACKS:
 
     onLoad () {
+        this.initHashData()
         this.initImg()
     },
 
@@ -32,21 +28,23 @@ cc.Class({
     },
 
     //__len : 像素数量
-    genImgData : function (__len) {
+    genImgData : function (__size, __freq, __octs) {
         let imgData = []
 
-        for (let i = 0; i < __len; i++) {
-        // for (let i = __len-1; i >= 0; i--) {
-            let pixData = {}
-            pixData.r = i%255
-            pixData.g = i%255
-            pixData.b = i%255
-            pixData.a = 255
-            imgData[imgData.length] = pixData
+        for (let y = 0; y < __size; y++) {
+            for (let x = 0; x < __size; x++) {
+                let noiseV = this.fBm(x*__freq, y*__freq, Math.floor(__size*__freq), __octs)
+                let pixData = {}
+                pixData.r = noiseV*255
+                pixData.g = noiseV*255
+                pixData.b = noiseV*255
+                pixData.a = 255
+                imgData[imgData.length] = pixData
+            }
         }
 
         let i = 0;
-        let data = new Uint8Array(__len*4);
+        let data = new Uint8Array(__size*__size*4);
         imgData.forEach((element)=>{
             data[i++] = element.r;
             data[i++] = element.g;
@@ -61,61 +59,89 @@ cc.Class({
         let texture = new cc.RenderTexture();
         let w = this.imgNoise.node.width
         let h = this.imgNoise.node.height
-        let real_w =  1024
-        let real_h = 1024
 
-        let data = this.genImgData(real_w*real_h)
-        texture.initWithData(data, cc.Texture2D.PixelFormat.RGBA8888, real_w, real_h, cc.size(real_w, real_h));
+        let data = this.genImgData(DEFAULT_W, this.m_freq, this.m_octs)
+        texture.initWithData(data, cc.Texture2D.PixelFormat.RGBA8888, DEFAULT_W, DEFAULT_W);
         let spriteFrame = new cc.SpriteFrame();
         spriteFrame.setTexture(texture);
         this.imgNoise.spriteFrame = spriteFrame;
     },
 
-    hash22(p){
-        p = cc.v2(p.dot(cc.v2(127.1, 311.7)),
-                  p.dot(cc.v2(269.5, 183.3))
-                );
-
-        let vRes = cc.v2(0, 0)
-        vRes.x = -1.0 + 2.0 * this.fract(Math.sin(p.x)*43758.5453123);
-        vRes.y = -1.0 + 2.0 * this.fract(Math.sin(p.y)*43758.5453123);
-        return vRes
-    },
-    fract(__num){
-        return __num - Math.floor(__num)
-    },
-
-    perlin_noise(p){
-        let pi = floor(p);
-        let pf = p - pi;
-
-        let w = pf * pf * (3.0 - 2.0 * pf);
-
-        return mix(mix(dot(hash22(pi + vec2(0.0, 0.0)), pf - vec2(0.0, 0.0)), 
-                    dot(hash22(pi + vec2(1.0, 0.0)), pf - vec2(1.0, 0.0)), w.x), 
-                mix(dot(hash22(pi + vec2(0.0, 1.0)), pf - vec2(0.0, 1.0)), 
-                    dot(hash22(pi + vec2(1.0, 1.0)), pf - vec2(1.0, 1.0)), w.x),
-                w.y);
-    },
     // update (dt) {},
 
     onBtnClick : function (__event) {
         if (__event.target.name == "btnSave") {
             this.onSaveImg()
-        }  
+        } else if (__event.target.name == "btnUpdate") {
+            this.onUpdateImg()
+        } 
     },
 
     onSaveImg : function () {
         if (jsb) {
             let w = this.imgNoise.node.width
             let h = this.imgNoise.node.height
-            let real_w = 1024
-            let real_h = 1024
             
-            var data = this.genImgData(real_w*real_h)
+            var data = this.genImgData(DEFAULT_W, this.m_freq, this.m_octs)
             var filePath = jsb.fileUtils.getWritablePath() + 'NoiseImage.png';
             console.log("onSaveImg === ", filePath)
-            jsb.saveImageData(data, real_w, real_h, filePath)
+            jsb.saveImageData(data, DEFAULT_W, DEFAULT_W, filePath)
         }
-    }
+    },
+
+    onUpdateImg : function () {
+        this.initHashData()
+        this.initImg()
+    },
+
+    /////////////////////////////////////////////// Perlin_Noise ///////////////////////////////////////////////////
+    //grid hash array
+    initHashData : function () {
+        let hashTbl = []
+        this.m_gradArr = []
+        for (let i = 0; i < HASH_LEN; i++) {
+            hashTbl[i] = i
+
+            let oneGrad = []
+            oneGrad[0] = Math.cos(i * 2.0 * Math.PI/HASH_LEN)
+            oneGrad[1] = Math.sin(i * 2.0 * Math.PI/HASH_LEN)
+            this.m_gradArr[i] = oneGrad
+        }
+        hashTbl.sort(function () {
+            return 0.5 - Math.random()
+        })
+        let cloneArr = hashTbl.slice(0)
+        this.m_hashTbl = hashTbl.concat(cloneArr)
+    },
+
+    //perlin_noise
+    perlinNoise : function (x, y, per) {
+        let hashTbl = this.m_hashTbl
+        let gradArr = this.m_gradArr
+        let surflet = function (intX, intY) {
+            let fX = Math.abs(x - intX)
+            let fY = Math.abs(y - intY)
+            let polyX = 1 - fX * fX * fX * (fX * (fX * 6 - 15) + 10)
+            let polyY = 1 - fY * fY * fY * (fY * (fY * 6 - 15) + 10)
+            let hashIndex = hashTbl[hashTbl[intX%per] + intY%per]
+            let grad = (x - intX)*gradArr[hashIndex][0] + (y - intY)*gradArr[hashIndex][1]
+            return polyX * polyY * grad
+        }
+        let iX = Math.floor(x) 
+        let iY = Math.floor(y)
+        let sumW = surflet(iX+0, iY+0) + surflet(iX+0, iY+1) + 
+                    surflet(iX+1, iY+0) + surflet(iX+1, iY+1)
+        return (sumW+1)/2.0
+    },
+
+    fBm : function (x, y, per, octs) {
+        let res = 0
+        for (let i = 0; i < octs; i++) {
+            let powV = Math.pow(2, i)
+            res += Math.pow(0.5, i) * this.perlinNoise(x * powV, y * powV, per * powV)
+        }
+        return res
+    },
+
+
 });
